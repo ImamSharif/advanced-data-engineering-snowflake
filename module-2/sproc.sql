@@ -2,6 +2,11 @@ USE ROLE accountadmin;
 USE DATABASE staging_tasty_bytes;
 USE SCHEMA raw_pos;
 
+DROP STREAM IF EXISTS order_header_stream;
+
+CREATE STREAM order_header_stream
+  ON TABLE staging_tasty_bytes.raw_pos.order_header;
+
 -- Configure logging level:
 ALTER ACCOUNT SET LOG_LEVEL = 'INFO';
 
@@ -18,7 +23,7 @@ import snowflake.snowpark.functions as F
 from snowflake.snowpark import Session
 import logging
 
-def process_order_headers_stream(session: Session) -> float:
+def process_order_headers_stream(session: Session) -> str:
     logger = logging.getLogger('order_headers_stream_sproc')
     
     # Log procedure start:
@@ -27,11 +32,12 @@ def process_order_headers_stream(session: Session) -> float:
     try:
         # Query the stream
         logger.info("Querying order_header_stream for new records")
-        recent_orders = session.table("order_header_stream").filter(F.col("METADATA$ACTION") == "INSERT")
+        recent_orders = (session.table("order_header_stream").filter(F.col('"METADATA$ACTION"') == F.lit("INSERT")))
         
         # Look up location of the orders in the stream using the LOCATIONS table
         logger.info("Filtering orders for Hamburg, Germany")
         locations = session.table("location")
+        
         hamburg_orders = recent_orders.join(
             locations,
             recent_orders["LOCATION_ID"] == locations["LOCATION_ID"]
